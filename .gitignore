@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+
+# Jupyter/IDE
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and artifacts
+artifacts/
+*.log
+pipeline_execution.log
+pipeline_status.json
+
+# Data and model artifacts
+/data/
+/models/
+
+# Spark/Kafka checkpoints
+**/checkpoints/
+**/_spark_metadata/
+
+# Environment
+.env
+.env.*
+
+# Large binaries
+*.parquet
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar

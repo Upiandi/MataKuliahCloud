@@ -1,0 +1,18 @@
+# Healthcare Big Data Project Dependencies
+
+# Core Data Processing (Verified installed)
+pandas==2.3.3
+numpy==1.26.4
+pyarrow==15.0.2
+
+# Apache Spark (distributed processing)
+pyspark==3.5.1
+
+# Machine Learning
+scikit-learn==1.4.2
+
+# Kafka (streaming data platform)
+kafka-python==2.0.2
+
+# Web Monitoring
+flask==2.3.3
