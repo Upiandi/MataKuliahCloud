@@ -38,6 +38,8 @@ pipeline_status.json
 # Environment
 .env
 .env.*
+!.env.example
+!**/.env.example
 
 # Large binaries
 *.parquet
@@ -46,3 +48,70 @@ pipeline_status.json
 *.tar.gz
 *.tgz
 *.rar
+
+# Node.js (apps/backend, apps/frontend)
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# Prisma local generated client is fine to ignore (regenerated via `prisma generate`)
+**/node_modules/.prisma/
+
+# ──────────────────────────────────────────────────────────────────────────
+# Secrets & credentials (NEVER commit) — defensive patterns
+# ──────────────────────────────────────────────────────────────────────────
+# Private keys / certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.ppk
+*.gpg
+# SSH keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+# Any *.env file (e.g. prod.env, local.env); .env.example stays tracked (negated above)
+*.env
+# Secret/credential blobs
+secrets/
+.secrets
+*.secret
+secret.json
+secrets.json
+credentials.json
+*-credentials.json
+service-account*.json
+*-key.json
+.pgpass
+.htpasswd
+
+# Local databases (app uses PostgreSQL; ignore any stray local DB files)
+*.sqlite
+*.sqlite3
+*.db
+
+# Test coverage & tool caches
+coverage/
+.nyc_output/
+.eslintcache
+.cache/
+.npm/
+.yarn/
+
+# Editor/OS leftovers
+*.swp
+*.swo
+*~
+._*
+*.tmp
+

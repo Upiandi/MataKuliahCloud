@@ -1,0 +1,166 @@
+// ICU Patient Monitoring — Prisma schema
+// Models map to the Healthcare Big Data ICU Sepsis domain:
+// raw vitals/labs (VitalSign) -> computed/predicted risk (Prediction) -> Alert.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DOCTOR
+  NURSE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PatientStatus {
+  ADMITTED
+  DISCHARGED
+  TRANSFERRED
+}
+
+enum RiskCategory {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum PredictionSource {
+  RULE_BASED // computed in the NestJS RiskService
+  ML_PIPELINE // pushed from the Spark/parquet ML pipeline
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(NURSE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  recordedVitals    VitalSign[] @relation("RecordedBy")
+  acknowledgedAlerts Alert[]    @relation("AcknowledgedBy")
+
+  @@map("users")
+}
+
+model Patient {
+  id          String        @id @default(uuid())
+  mrn         String        @unique // medical record number
+  name        String
+  age         Int
+  gender      Gender
+  ward        String?       @default("ICU")
+  bed         String?
+  status      PatientStatus @default(ADMITTED)
+  // Length of stay in ICU (days) — from dataset
+  lengthOfStay Int          @default(0)
+  admittedAt  DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  vitals      VitalSign[]
+  predictions Prediction[]
+  alerts      Alert[]
+
+  @@index([status])
+  @@map("patients")
+}
+
+model VitalSign {
+  id         String   @id @default(uuid())
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId  String
+  recordedAt DateTime @default(now())
+
+  // Core vitals
+  pulseRate         Float
+  respiratoryRate   Float
+  systolicBp        Float
+  diastolicBp       Float
+  oxygenSaturation  Float
+  temperature       Float?
+
+  // Labs (from ICU Sepsis dataset)
+  crp        Float? // C-reactive protein
+  glucose    Float? // Glukoz
+  creatinine Float?
+  wbc        Float? // white blood cell count
+
+  // Derived clinical values (computed at record time)
+  map         Float? // mean arterial pressure
+  shockIndex  Float?
+  sirsScore   Int?
+  qsofa       Int?
+  newsScore   Int? // National Early Warning Score
+
+  recordedBy   User?   @relation("RecordedBy", fields: [recordedById], references: [id])
+  recordedById String?
+
+  predictions Prediction[]
+
+  @@index([patientId, recordedAt])
+  @@map("vital_signs")
+}
+
+model Prediction {
+  id          String           @id @default(uuid())
+  patient     Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId   String
+  vitalSign   VitalSign?       @relation(fields: [vitalSignId], references: [id], onDelete: SetNull)
+  vitalSignId String?
+
+  source        PredictionSource @default(RULE_BASED)
+  riskCategory  RiskCategory
+  // Predicted mortality probability [0..1]
+  probability   Float
+  sirsScore     Int?
+  qsofa         Int?
+  modelVersion  String?
+  createdAt     DateTime         @default(now())
+
+  alerts Alert[]
+
+  @@index([patientId, createdAt])
+  @@map("predictions")
+}
+
+model Alert {
+  id          String        @id @default(uuid())
+  patient     Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId   String
+  prediction  Prediction?   @relation(fields: [predictionId], references: [id], onDelete: SetNull)
+  predictionId String?
+
+  severity     AlertSeverity @default(WARNING)
+  type         String        // e.g. "HIGH_MORTALITY_RISK", "HYPOXIA", "HYPOTENSION"
+  message      String
+
+  acknowledged    Boolean   @default(false)
+  acknowledgedBy   User?    @relation("AcknowledgedBy", fields: [acknowledgedById], references: [id])
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([acknowledged, createdAt])
+  @@index([patientId])
+  @@map("alerts")
+}

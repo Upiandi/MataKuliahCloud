@@ -1,0 +1,78 @@
+# ICU Patient Monitoring — full stack (PostgreSQL + NestJS API + React/nginx).
+#
+# Quick start (from repo root):
+#   docker compose -f infra/compose/docker-compose.yml up --build -d
+#   docker compose -f infra/compose/docker-compose.yml --profile seed run --rm seeder
+#   open http://localhost:8080   (login: dokter@icu.test / password123)
+#
+# Postgres is also published on localhost:5432 for local (non-Docker) development.
+
+name: icu-monitoring
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-icu_password}
+      POSTGRES_DB: ${POSTGRES_DB:-icu_monitoring}
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-icu} -d ${POSTGRES_DB:-icu_monitoring}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../../apps/backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-icu}:${POSTGRES_PASSWORD:-icu_password}@postgres:5432/${POSTGRES_DB:-icu_monitoring}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-please}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      INGEST_API_KEY: ${INGEST_API_KEY:-ml-pipeline-ingest-key-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      PORT: 3000
+      # Realtime: built-in simulator on by default. Set to "false" to drive data
+      # only from the Spark/Kafka pipeline via the bridge instead.
+      SIMULATOR_ENABLED: ${SIMULATOR_ENABLED:-true}
+      SIMULATOR_INTERVAL_MS: ${SIMULATOR_INTERVAL_MS:-8000}
+    ports:
+      - '3000:3000'
+
+  frontend:
+    build:
+      context: ../../apps/frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '8080:80'
+
+  # One-off seeder. Uses the backend build stage (has Prisma + ts-node).
+  # Run with:  docker compose ... --profile seed run --rm seeder
+  seeder:
+    build:
+      context: ../../apps/backend
+      dockerfile: Dockerfile
+      target: build
+    profiles: ['seed']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-icu}:${POSTGRES_PASSWORD:-icu_password}@postgres:5432/${POSTGRES_DB:-icu_monitoring}?schema=public
+    command: sh -c "npx prisma migrate deploy && npx ts-node prisma/seed.ts"
+
+volumes:
+  pgdata:
